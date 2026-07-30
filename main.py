@@ -103,15 +103,27 @@ def listar_tarefas(unidade: str = Query(..., description="Ex: GOIAS, SP, RJ, San
     finally:
         conn.close()
 
-    if not linhas and ultima_atualizacao is None:
-        raise HTTPException(status_code=404, detail=f"Nenhum dado encontrado para unidade '{unidade}'")
-
     tarefas = [{k: serializar(v) for k, v in linha.items()} for linha in linhas]
 
     return {
         "atualizado_em": serializar(ultima_atualizacao),
         "tarefas": tarefas,
     }
+
+
+@app.get("/api/atualizacao")
+def ultima_atualizacao_geral():
+    """Retorna só a data da última atualização, sem carregar nenhuma tarefa —
+    usado pra alimentar o aviso do topo da página sem precisar buscar
+    os dados pesados de todas as unidades."""
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT GREATEST(MAX(t.atualizado_em), MAX(c.atualizado_em)) FROM tarefas_pendentes t JOIN clientes c ON c.cod_cliente = t.cod_cliente")
+            resultado = cur.fetchone()
+    finally:
+        conn.close()
+    return {"atualizado_em": serializar(resultado[0] if resultado else None)}
 
 
 @app.get("/api/health")
